@@ -18,6 +18,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
 import rx.Observable;
+import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.functions.Func1;
@@ -29,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     EditText et_keyword;
     @Bind(R.id.tv_result)
     TextView tv_result;
+    private SearchService service;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,9 +44,9 @@ public class MainActivity extends AppCompatActivity {
                 .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
                 .build();
 
-        final SearchService service = retrofit.create(SearchService.class);
+        service = retrofit.create(SearchService.class);
 
-        RxTextView.textChanges(et_keyword)
+        Observable<CharSequence> filter = RxTextView.textChanges(et_keyword)
                 // 上面的对 tv_result 的操作需要在主线程
                 .subscribeOn(AndroidSchedulers.mainThread())
                 .debounce(600, TimeUnit.MILLISECONDS, AndroidSchedulers.mainThread())
@@ -56,8 +58,21 @@ public class MainActivity extends AppCompatActivity {
                         //当 EditText 中文字大于0的时候
                         return charSequence.length() > 0;
                     }
-                })
-                .observeOn(Schedulers.io())
+                });
+
+        filter.subscribe(new Action1<CharSequence>() {
+            @Override
+            public void call(CharSequence charSequence) {
+                doSearch(charSequence);
+            }
+        });
+    }
+
+    private void doSearch(CharSequence charSequence) {
+
+        Observable<CharSequence> just = Observable.just(charSequence);
+
+        just.observeOn(Schedulers.io())
 //                .retryWhen(new RetryWithConnectivityIncremental(MainActivity.this, 5, 15, TimeUnit.MILLISECONDS))
                 .switchMap(new Func1<CharSequence, Observable<Data>>() {
                     @Override
@@ -92,13 +107,6 @@ public class MainActivity extends AppCompatActivity {
                         return "[商品名称:" + strings.get(0) + ", ID:" + strings.get(1) + "]\n";
                     }
                 })
-                // 发生错误后不要调用 onError，而是转到 onErrorResumeNext
-                /*.onErrorResumeNext(new Func1<Throwable, Observable<? extends String>>() {
-                    @Override public Observable<? extends String> call(Throwable throwable) {
-                        return Observable.just("error result");
-                    }
-                })*/
-
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Action1<String>() {
                     @Override
@@ -112,7 +120,6 @@ public class MainActivity extends AppCompatActivity {
                         throwable.printStackTrace();
                     }
                 });
-
     }
 
     private void showpop(String result) {
