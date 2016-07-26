@@ -1,3 +1,5 @@
+# 修改为使用 Retrofit2 框架
+
 # RxSerach
 
 https://medium.com/@diolor/improving-ux-with-rxjava-4440a13b157f#.qdhu122d1
