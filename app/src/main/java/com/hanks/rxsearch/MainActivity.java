@@ -5,7 +5,6 @@ import android.support.v7.app.AppCompatActivity;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.google.gson.Gson;
 import com.jakewharton.rxbinding.widget.RxTextView;
 
 import java.util.ArrayList;
@@ -13,10 +12,11 @@ import java.util.concurrent.TimeUnit;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
-import retrofit.RestAdapter;
-import retrofit.converter.GsonConverter;
-import retrofit.http.GET;
-import retrofit.http.Query;
+import retrofit2.Retrofit;
+import retrofit2.adapter.rxjava.RxJavaCallAdapterFactory;
+import retrofit2.converter.gson.GsonConverterFactory;
+import retrofit2.http.GET;
+import retrofit2.http.Query;
 import rx.Observable;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
@@ -25,17 +25,21 @@ import rx.schedulers.Schedulers;
 
 public class MainActivity extends AppCompatActivity {
 
-    @Bind(R.id.et_keyword) EditText et_keyword;
-    @Bind(R.id.tv_result)  TextView tv_result;
+    @Bind(R.id.et_keyword)
+    EditText et_keyword;
+    @Bind(R.id.tv_result)
+    TextView tv_result;
 
-    @Override protected void onCreate(Bundle savedInstanceState) {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
-        RestAdapter retrofit = new RestAdapter.Builder().setEndpoint("https://suggest.taobao.com")
-                .setLogLevel(RestAdapter.LogLevel.FULL)
-                .setConverter(new GsonConverter(new Gson()))
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("https://suggest.taobao.com")
+                .addConverterFactory(GsonConverterFactory.create())
+                .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
                 .build();
 
         final SearchService service = retrofit.create(SearchService.class);
@@ -45,41 +49,46 @@ public class MainActivity extends AppCompatActivity {
                 .subscribeOn(AndroidSchedulers.mainThread())
                 .debounce(600, TimeUnit.MILLISECONDS, AndroidSchedulers.mainThread())
                 .filter(new Func1<CharSequence, Boolean>() {
-                    @Override public Boolean call(CharSequence charSequence) {
+                    @Override
+                    public Boolean call(CharSequence charSequence) {
                         // 清空搜索出来的结构
                         tv_result.setText("");
                         //当 EditText 中文字大于0的时候
                         return charSequence.length() > 0;
                     }
                 })
+                .observeOn(Schedulers.io())
+//                .retryWhen(new RetryWithConnectivityIncremental(MainActivity.this, 5, 15, TimeUnit.MILLISECONDS))
                 .switchMap(new Func1<CharSequence, Observable<Data>>() {
-                    @Override public Observable<Data> call(CharSequence charSequence) {
+                    @Override
+                    public Observable<Data> call(CharSequence charSequence) {
                         // 搜索
                         return service.searchProdcut("utf-8", charSequence.toString());
                     }
                 })
-//                .retryWhen(new RetryWithConnectivityIncremental(MainActivity.this, 5, 15, TimeUnit.MILLISECONDS))
-                // 网络操作在io线程
-                .subscribeOn(Schedulers.io())
                 //将 data 转换成 ArrayList<ArrayList<String>>
                 .map(new Func1<Data, ArrayList<ArrayList<String>>>() {
-                    @Override public ArrayList<ArrayList<String>> call(Data data) {
+                    @Override
+                    public ArrayList<ArrayList<String>> call(Data data) {
                         return data.result;
                     }
                 })
                 // 将 ArrayList<ArrayList<String>> 中每一项提取出来 ArrayList<String>
                 .flatMap(new Func1<ArrayList<ArrayList<String>>, Observable<ArrayList<String>>>() {
-                    @Override public Observable<ArrayList<String>> call(ArrayList<ArrayList<String>> arrayLists) {
+                    @Override
+                    public Observable<ArrayList<String>> call(ArrayList<ArrayList<String>> arrayLists) {
                         return Observable.from(arrayLists);
                     }
                 })
                 .filter(new Func1<ArrayList<String>, Boolean>() {
-                    @Override public Boolean call(ArrayList<String> strings) {
+                    @Override
+                    public Boolean call(ArrayList<String> strings) {
                         return strings.size() >= 2;
                     }
                 })
                 .map(new Func1<ArrayList<String>, String>() {
-                    @Override public String call(ArrayList<String> strings) {
+                    @Override
+                    public String call(ArrayList<String> strings) {
                         return "[商品名称:" + strings.get(0) + ", ID:" + strings.get(1) + "]\n";
                     }
                 })
@@ -92,8 +101,15 @@ public class MainActivity extends AppCompatActivity {
 
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Action1<String>() {
-                    @Override public void call(String charSequence) {
+                    @Override
+                    public void call(String charSequence) {
                         showpop(charSequence);
+                    }
+                }, new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        // Handle Error
+                        throwable.printStackTrace();
                     }
                 });
 
@@ -105,7 +121,8 @@ public class MainActivity extends AppCompatActivity {
 
     interface SearchService {
 
-        @GET("/sug") Observable<Data> searchProdcut(@Query("code") String code, @Query("q") String keyword);
+        @GET("/sug")
+        Observable<Data> searchProdcut(@Query("code") String code, @Query("q") String keyword);
     }
 
     class Data {

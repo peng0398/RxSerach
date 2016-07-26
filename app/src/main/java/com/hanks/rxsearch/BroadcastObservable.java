@@ -1,4 +1,5 @@
 package com.hanks.rxsearch;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -14,6 +15,7 @@ import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action0;
 import rx.subscriptions.Subscriptions;
+
 /**
  * Created by hanks on 15-11-29.
  */
@@ -31,13 +33,15 @@ public class BroadcastObservable implements Observable.OnSubscribe<Boolean> {
 
     private static Subscription unsubscribeInUiThread(final Action0 unsubscribe) {
         return Subscriptions.create(new Action0() {
-            @Override public void call() {
+            @Override
+            public void call() {
                 if (Looper.getMainLooper() == Looper.myLooper()) {
                     unsubscribe.call();
                 } else {
                     final Scheduler.Worker inner = AndroidSchedulers.mainThread().createWorker();
                     inner.schedule(new Action0() {
-                        @Override public void call() {
+                        @Override
+                        public void call() {
                             unsubscribe.call();
                             inner.unsubscribe();
                         }
@@ -47,18 +51,21 @@ public class BroadcastObservable implements Observable.OnSubscribe<Boolean> {
         });
     }
 
-    @Override public void call(final Subscriber<? super Boolean> subscriber) {
+    @Override
+    public void call(final Subscriber<? super Boolean> subscriber) {
 
         final BroadcastReceiver receiver = new BroadcastReceiver() {
 
-            @Override public void onReceive(Context context, Intent intent) {
+            @Override
+            public void onReceive(Context context, Intent intent) {
                 subscriber.onNext(isConnectedToInternet());
             }
         };
 
         context.registerReceiver(receiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         subscriber.add(unsubscribeInUiThread(new Action0() {
-            @Override public void call() {
+            @Override
+            public void call() {
                 context.unregisterReceiver(receiver);
             }
         }));

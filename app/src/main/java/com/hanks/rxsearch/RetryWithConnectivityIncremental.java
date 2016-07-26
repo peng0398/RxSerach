@@ -1,10 +1,11 @@
 package com.hanks.rxsearch;
+
 import android.content.Context;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import retrofit.RetrofitError;
 import rx.Observable;
 import rx.functions.Action1;
 import rx.functions.Func1;
@@ -63,7 +64,7 @@ public class RetryWithConnectivityIncremental implements Func1<Observable<? exte
     @Override public Observable<?> call(final Observable<? extends Throwable> observable) {
         return observable.flatMap(new Func1<Throwable, Observable<Boolean>>() {
             @Override public Observable<Boolean> call(Throwable throwable) {
-                if (throwable instanceof RetrofitError && ((RetrofitError) throwable).getKind() == RetrofitError.Kind.NETWORK) {
+                if (throwable instanceof IOException) {
                     return isConnected;
                 } else {
                     return Observable.error(throwable);
